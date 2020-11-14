@@ -33,10 +33,10 @@ class KittiProjection(Projection):
         """
         calib_dict = cls._file_to_calib_dict(calib_path)
         # Get transformation matrices from the calibration data
-        velo_to_cam = calib_dict['Tr_velo_to_cam'].reshape((3, 4))
+        velo_to_cam = np.eye(4, 4, dtype=float)[:3, :]
         Tr = np.concatenate(
             [velo_to_cam, np.array([0, 0, 0, 1]).reshape((1, 4))])
-        P = calib_dict['P2'].reshape((3, 4))
+        P = calib_dict['pix_T_cam'].reshape((4, 4))[:3, :].reshape((3, 4))
         return cls(Tr, P)
 
     @classmethod
@@ -123,11 +123,15 @@ def load_kitti_lidar_data(filename, verbose=False, load_reflectance=False):
         Columns are x, y, z, reflectance
 
     """
-    with open(filename, "rb") as lidar_file:
-        # Velodyne data stored as binary float matrix
-        lidar_data = np.fromfile(lidar_file, dtype=np.float32)
-        # Velodyne data contains x,y,z, and reflectance
-        lidar_data = lidar_data.reshape((-1,4))
+    # with open(filename, "rb") as lidar_file:
+    #     # Velodyne data stored as binary float matrix
+    #     lidar_data = np.fromfile(lidar_file, dtype=np.float32)
+    #     # Velodyne data contains x,y,z, and reflectance
+    #     lidar_data = lidar_data.reshape((-1,3))
+
+    lidar_data = np.load(filename, allow_pickle=True)
+    lidar_data = lidar_data.reshape((-1, 3))
+    
     if verbose:
         print("Loaded lidar point cloud with %d points." % lidar_data.shape[0])
     if load_reflectance:
