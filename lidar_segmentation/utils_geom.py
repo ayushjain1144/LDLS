@@ -1,7 +1,8 @@
 import torch
-import utils_basic
-import utils_box
-import utils_vox
+
+import lidar_segmentation.utils_basic as utils_basic
+import lidar_segmentation.utils_box as utils_box
+# import lidar_segmentation.utils_vox as utils_vox
 import numpy as np
 
 def eye_3x3(B):
@@ -698,6 +699,26 @@ def get_iou_from_corresponded_lrtlists(lrtlist_a, lrtlist_b):
             # print('computed iou %d,%d: %.2f' % (b, n, iou))
             ioulist[b,n] = iou
     return ioulist
+
+def get_iou_from_corresponded_xyzlists_py(xyzlist_a, xyzlist_b):
+    B, N, D, C = xyzlist_a.shape
+
+    assert(D==8)
+    assert(C==3)
+
+    ioulist_2d = torch.zeros(B, N, dtype=torch.float32, device=torch.device('cpu'))
+    ioulist_3d = torch.zeros(B, N, dtype=torch.float32, device=torch.device('cpu'))
+    for b in list(range(B)):
+        for n in list(range(N)):
+            iou3d, iou2d = utils_box.box3d_iou(xyzlist_a[b,n], xyzlist_b[b,n]+1e-4)
+            # print('computed iou %d,%d: %.2f' % (b, n, iou))
+            ioulist_3d[b,n] = iou3d
+            ioulist_2d[b, n] = iou2d
+    return ioulist_3d, ioulist_2d
+    
+
+
+
 
 def get_centroid_from_box2D(box2D):
     ymin = box2D[:,0]

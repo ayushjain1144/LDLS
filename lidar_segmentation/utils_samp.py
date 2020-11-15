@@ -1,7 +1,7 @@
 import torch
-from utils_basic import *
-import utils_basic
-import utils_geom
+from lidar_segmentation.utils_basic import *
+import lidar_segmentation.utils_geom as utils_geom
+import lidar_segmentation.utils_basic as utils_basic
 # import resampler_lib.grid_interpolate as interpolate_cuda
 import torch.nn.functional as F
 

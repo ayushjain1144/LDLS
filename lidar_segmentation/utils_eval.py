@@ -1,12 +1,12 @@
 import io as sysio
 import time
-import hyperparams as hyp
+# import hyperparams as hyp
 import random
 # import numba
 import numpy as np
-import utils_geom
-import utils_box
-import utils_ap
+import lidar_segmentation.utils_geom as utils_geom
+import lidar_segmentation.utils_box as utils_box
+import lidar_segmentation.utils_ap as utils_ap
 
 EPS = 1e-6
 
@@ -609,3 +609,77 @@ def d3_box_overlap(boxes, qboxes, criterion=-1):
     
 #     # print("maps", maps)
 #     return maps
+
+def get_mAP_from_lrtlist(lrtlist_e, scores, lrtlist_g, iou_thresholds):
+    # lrtlist are 1 x N x 19
+    B, Ne, _ = list(lrtlist_e.shape)
+    B, Ng, _ = list(lrtlist_g.shape)
+    assert(B==1)
+    scores = scores.detach().cpu().numpy()
+    # print("e", boxes_e, "g", boxes_g, "score", scores)
+    scores = scores.flatten()
+    # size [N, 8, 3]
+    ious_3d = np.zeros((Ne, Ng), dtype=np.float32)
+    ious_2d = np.zeros((Ne, Ng), dtype=np.float32)
+    for i in list(range(Ne)):
+        for j in list(range(Ng)):
+            iou_3d, iou_2d = utils_geom.get_iou_from_corresponded_lrtlists(lrtlist_e[:, i:i+1], lrtlist_g[:, j:j+1])
+            ious_3d[i, j] = iou_3d[0, 0]
+            ious_2d[i, j] = iou_2d[0, 0]
+    maps_3d = []
+    maps_2d = []
+    for iou_threshold in iou_thresholds:
+        map3d, precision, recall, overlaps = utils_ap.compute_ap(
+            "box3d_" + str(iou_threshold), scores, ious_3d, iou_threshold=iou_threshold)
+        maps_3d.append(map3d)
+        map2d, precision, recall, overlaps = utils_ap.compute_ap(
+            "box2d_" + str(iou_threshold), scores, ious_2d, iou_threshold=iou_threshold)
+        maps_2d.append(map2d)
+    maps_3d = np.stack(maps_3d, axis=0).astype(np.float32)
+    maps_2d = np.stack(maps_2d, axis=0).astype(np.float32)
+    if np.isnan(maps_3d).any():
+        # print('got these nans in maps; setting to zero:', maps)
+        maps_3d[np.isnan(maps_3d)] = 0.0
+    if np.isnan(maps_2d).any():
+        # print('got these nans in maps; setting to zero:', maps)
+        maps_2d[np.isnan(maps_2d)] = 0.0
+
+    # print("maps_3d", maps_3d)
+    return maps_3d, maps_2d
+
+
+def get_mAP_from_xyzlist_py(xyzlist_e, scores, xyzlist_g, iou_threshold):
+    # lrtlist are 1 x N x 19
+    B, Ne, _, _ = list(xyzlist_e.shape)
+    B, Ng, _, _ = list(xyzlist_g.shape)
+    assert(B==1)
+    scores = scores
+    # print("e", boxes_e, "g", boxes_g, "score", scores)
+    scores = scores.flatten()
+    # size [N, 8, 3]
+    ious_3d = np.zeros((Ne, Ng), dtype=np.float32)
+    ious_2d = np.zeros((Ne, Ng), dtype=np.float32)
+    for i in list(range(Ne)):
+        for j in list(range(Ng)):
+            iou_3d, iou_2d = utils_geom.get_iou_from_corresponded_xyzlists_py(xyzlist_e[:, i:i+1], xyzlist_g[:, j:j+1])
+            ious_3d[i, j] = iou_3d[0, 0]
+            ious_2d[i, j] = iou_2d[0, 0]
+    # maps_3d = []
+
+    # maps_2d = []
+    map3d, precision, recall, overlaps = utils_ap.compute_ap(
+        "box3d_" + str(iou_threshold), scores, ious_3d, iou_threshold=iou_threshold)
+    # maps_3d.append(map3d)
+    map2d, precision, recall, overlaps = utils_ap.compute_ap(
+        "box2d_" + str(iou_threshold), scores, ious_2d, iou_threshold=iou_threshold)
+    # maps_2d.append(map2d)
+
+    # if np.isnan(maps_3d).any():
+    #     # print('got these nans in maps; setting to zero:', maps)
+    #     maps_3d[np.isnan(maps_3d)] = 0.0
+    # if np.isnan(maps_2d).any():
+    #     # print('got these nans in maps; setting to zero:', maps)
+    #     maps_2d[np.isnan(maps_2d)] = 0.0
+
+    # print("maps_3d", maps_3d)
+    return map3d, map2d

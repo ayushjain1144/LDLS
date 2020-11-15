@@ -12,7 +12,7 @@ import sys
 
 import keras.backend
 import tensorflow
-
+import numpy as np
 from lidar_segmentation.detections import MaskRCNNDetections
 
 # Leave part of the GPU memory unallocated, so can be used for label diffusion
@@ -35,7 +35,8 @@ import mrcnn.model as modellib
 sys.path.append(os.path.join(ROOT_DIR, "coco/"))  # To find local version
 
 from mask_rcnn import coco
-
+import ipdb
+st = ipdb.set_trace
 
 # COCO Class names
 # Index of the class in the list is its ID. For example, to get ID of
@@ -97,12 +98,33 @@ class MaskRCNNDetector(object):
         if not detect_multiple:
             images = [images]
         all_results = self.model.detect(images, verbose=verbose)
-        all_detections = [MaskRCNNDetections(shape=image.shape,
-                                             rois=result['rois'],
-                                             masks=result['masks'],
-                                             class_ids=result['class_ids'],
-                                             scores=result['scores'])
-                          for image,result in zip(images, all_results)]
+
+        # detect only cars
+        all_detections = []
+
+        for image, result in zip(images, all_results):
+            rois = []
+            masks = []
+            class_ids = []
+            scores = []
+
+            # st()
+            for idx, cls_id in enumerate(result['class_ids']):
+                if cls_id >= 3 and cls_id <= 9 and cls_id != 4:
+                    rois.append(result['rois'][idx])
+                    masks.append(result['masks'][:, :, idx])
+                    class_ids.append(1)
+                    scores.append(result['scores'][idx])
+            rois = np.array(rois)
+            class_ids = np.array(class_ids)
+            masks = np.array(masks).transpose((1, 2, 0))
+            scores = np.array(scores)
+            all_detections.append(MaskRCNNDetections(shape=image.shape,
+                                             rois=rois,
+                                             masks=masks,
+                                             class_ids=class_ids,
+                                             scores=scores))
+
         if not detect_multiple:
             return all_detections[0]
         else:

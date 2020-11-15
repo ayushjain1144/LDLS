@@ -6,16 +6,16 @@ import os
 import numpy as np
 from matplotlib import cm
 # import hyperparams as hyp
-import utils_geom
-import utils_vox
-import utils_py
+import lidar_segmentation.utils_geom as utils_geom
+import lidar_segmentation.utils_vox as utils_vox
+import lidar_segmentation.utils_py as utils_py
 import matplotlib
 import imageio
 from itertools import combinations
 from tensorboardX import SummaryWriter
 
-from utils_basic import *
-import utils_basic
+from lidar_segmentation.utils_basic import *
+import lidar_segmentation.utils_basic as utils_basic
 from sklearn.decomposition import PCA
 
 EPS = 1e-6

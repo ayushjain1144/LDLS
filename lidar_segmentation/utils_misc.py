@@ -3,14 +3,15 @@ import tensorboardX
 import torch
 import torch.nn as nn
 import numpy as np
-import utils_vox
-import utils_improc
-import utils_geom
-import utils_basic
-import utils_samp
+
+import lidar_segmentation.utils_geom as utils_geom
+import lidar_segmentation.utils_basic as utils_basic
+import lidar_segmentation.utils_vox as utils_vox
+import lidar_segmentation.utils_improc as utils_improc
+
 import imageio
 import cv2
-import hyperparams as hyp
+# import hyperparams as hyp
 
 def add_loss(name, total_loss, loss, coeff, summ_writer):
     # summ_writer should be Summ_writer object in utils_improc
