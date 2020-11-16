@@ -36,7 +36,7 @@ class KittiProjection(Projection):
         velo_to_cam = np.eye(4, 4, dtype=float)[:3, :]
         Tr = np.concatenate(
             [velo_to_cam, np.array([0, 0, 0, 1]).reshape((1, 4))])
-        P = calib_dict['pix_T_cam'].reshape((4, 4))[:3, :].reshape((3, 4))
+        P = calib_dict['pix_T_cam'].reshape((4, 4))
         return cls(Tr, P)
 
     @classmethod

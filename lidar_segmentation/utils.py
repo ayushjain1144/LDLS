@@ -7,7 +7,10 @@ Utilities for loading in lidar and image data.
 """
 import numpy as np
 from skimage.io import imread
-
+import lidar_segmentation.utils_geom as utils_geom
+import ipdb
+st = ipdb.set_trace
+import torch
 CLASS_NAMES = ['BG', 'person', 'bicycle', 'car', 'motorcycle', 'airplane',
                'bus', 'train', 'truck', 'boat', 'traffic light',
                'fire hydrant', 'stop sign', 'parking meter', 'bench', 'bird',
@@ -55,7 +58,7 @@ class Projection(object):
         self.transformation_matrix = Tr
         self.projection_matrix = P
 
-    def project(self, points, remove_behind=True):
+    def project(self, points, remove_behind=False):
         """
         Project points from the Velodyne coordinate frame to image frame
         pixel coordinates.
@@ -81,15 +84,17 @@ class Projection(object):
         d = points.shape[1]
         Tr = self.transformation_matrix
         P = self.projection_matrix
-        if d == 3:
+        st()
+        # if d == 3:
             # Append 1 for homogenous coordinates
-            points = np.concatenate([points, np.ones((n, 1))], axis=1)
-        projected = (P.dot(Tr).dot(points.T)).T
+            # points = np.concatenate([points, np.ones((n, 1))], axis=1)
+        # P = np.concatenate([P, [0, 0, ]])
+        projected = utils_geom.apply_pix_T_cam(torch.from_numpy(P).unsqueeze(0).cuda(), torch.from_numpy(points).unsqueeze(0).cuda()).cpu().numpy()
 
         # normalize by dividing first and second dimensions by third dimension
-        projected = np.column_stack(
-            [projected[:, 0] / projected[:, 2],
-             projected[:, 1] / projected[:, 2]])
+        # projected = np.column_stack(
+            # [projected[:, 0] / projected[:, 2],
+            #  projected[:, 1] / projected[:, 2]])
 
         if remove_behind:
             behind = points[:,0] <= 0
