@@ -69,8 +69,12 @@ Z, Y, X,
 assert_cube=True)
 detector = MaskRCNNDetector()
 
-for idx in range(len(os.listdir(image_folder))):
+do_visualize = True
 
+for idx in range(len(os.listdir(image_folder))):
+    
+    if do_visualize:
+        idx = idx * 100
     calib_path = Path("testing/") / "calib" / f"{idx}.txt"
     image_path = Path("testing/") / "image_2" / f"{idx}.png"
     lidar_path = Path("testing/") / "velodyne" / f"{idx}.npy"
@@ -171,6 +175,22 @@ for idx in range(len(os.listdir(image_folder))):
         pred_lrtlist = vox_util.apply_ref_T_mem_to_lrtlist(pred_lrtlist, Z, Y, X)
         pred_xyzlist = utils_geom.get_xyzlist_from_lrtlist(pred_lrtlist)
 #         print(pred_xyzlist)
+
+        if do_visualize:
+            rgb_camXs = torch.from_numpy(image).permute(2, 0, 1).unsqueeze(0)
+            full_scorelist_s = torch.from_numpy(scores).unsqueeze(0)
+            full_tidlist_s = full_scorelist_s
+            pix_T_cams = torch.from_numpy(projection.projection_matrix).unsqueeze(0)
+                
+            vis1.append(self.summ_writer.summ_lrtlist(
+                        '', rgb_camXs,
+                        pred_lrtlist,
+                        full_scorelist_s,
+                        full_tidlist_s,
+                        pix_T_cams,
+                        only_return=True))
+        
+            summ_writer.summ_rgbs(f'boxes3d_all_box{idx}', vis1)
         map3d,_ = utils_eval.get_mAP_from_xyzlist_py(pred_xyzlist.cpu().numpy(), scores, np.expand_dims(np.stack(box3d_list, axis=0), axis=0), iou_threshold=0.25)
         print(map3d)
         agg_mAP_ldls += map3d
