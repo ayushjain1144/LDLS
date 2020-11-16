@@ -29,8 +29,8 @@ agg_mAP_ldls = 0.0
 agg_mAP_pseudo = 0.0
 total_imgs = 0
 
-eval_ldls = False
-eval_pseudo = True
+eval_ldls = True
+eval_pseudo = False
 
 if eval_ldls:
     image_folder = Path("testing/") / "image_2"
@@ -40,11 +40,11 @@ if eval_pseudo:
 
 for idx in range(len(os.listdir(image_folder))):
 
-    calib_path = Path("replica_gt_training/") / "calib" / f"{idx}.txt"
-    image_path = Path("replica_gt_training/") / "image_2" / f"{idx}.png"
-    lidar_path = Path("replica_gt_training/") / "velodyne" / f"{idx}.npy"
-    label_path = Path("replica_gt_training/") / "label_2" / f"{idx}.txt"
-    pseudo_path = Path("replica_pseudo_training") / "label_2" / f"{idx}.txt"
+    calib_path = Path("testing/") / "calib" / f"{idx}.txt"
+    image_path = Path("testing/") / "image_2" / f"{idx}.png"
+    lidar_path = Path("testing/") / "velodyne" / f"{idx}.npy"
+    label_path = Path("testing/") / "label_2" / f"{idx}.txt"
+    pseudo_path = Path("pseudo") / "label_2" / f"{idx}.txt"
 
     print(f"processing images at path: {image_path}")
 
@@ -120,19 +120,20 @@ for idx in range(len(os.listdir(image_folder))):
         results = lidarseg.run(lidar, detections, max_iters=50, save_all=False)
 
         # st()
-
+        #st()
         xyz_pc = results.points
         binary_pc = np.isclose(results.label_likelihoods[1], 0)[:, 1]
-
-        xyz_pc_obj = xyz_pc[binary_pc]
+        #st()
+        xyz_pc_obj = xyz_pc[~binary_pc]
         num_objs = results.class_ids.shape[0]
         scores = np.ones((num_objs, 1))
-        mask_grid_s = vox_util.voxelize_xyz(torch.from_numpy(xyz_pc_obj).unsqueeze(0), Z, Y, X, assert_cube=False)
+        mask_grid_s = vox_util.voxelize_xyz(torch.from_numpy(xyz_pc_obj).unsqueeze(0).cuda(), Z, Y, X, assert_cube=False)
         _, box3dlist, _, _, _ = utils_misc.get_boxes_from_flow_mag(mask_grid_s.squeeze(0), num_objs)
         pred_lrtlist = utils_geom.convert_boxlist_to_lrtlist(box3dlist)
         pred_lrtlist = vox_util.apply_ref_T_mem_to_lrtlist(pred_lrtlist, Z, Y, X)
         pred_xyzlist = utils_geom.get_xyzlist_from_lrtlist(pred_lrtlist)
-        map3d,_ = utils_eval.get_mAP_from_xyzlist_py(pred_xyzlist, scores, np.expand_dims(np.stack(box3d_list, axis=0), axis=0), iou_threshold=0.25)
+        map3d,_ = utils_eval.get_mAP_from_xyzlist_py(pred_xyzlist.cpu().numpy(), scores, np.expand_dims(np.stack(box3d_list, axis=0), axis=0), iou_threshold=0.25)
+        print(map3d)
         agg_mAP_ldls += map3d
 
     # map for pseudo

@@ -766,11 +766,14 @@ def get_boxes_from_flow_mag(flow_mag, N):
 
                         # i want to clip at the index where YMAX dips under the ground
                         # and where YMIN reaches above some reasonable height
-
-                        shift = hyp.YMIN
-                        scale = float(Y)/np.abs(float(hyp.YMAX-hyp.YMIN))
-                        ymin_ = (hyp.FLOOR-shift)*scale
-                        ymax_ = (hyp.CEIL-shift)*scale
+                        YMAX = 16
+                        YMIN = -16
+                        shift = YMIN
+                        FLOOR = 2.65
+                        CEIL = FLOOR - 2
+                        scale = float(Y)/np.abs(float(YMAX-YMIN))
+                        ymin_ = (FLOOR-shift)*scale
+                        ymax_ = (CEIL-shift)*scale
 
                         if ymin_ > ymax_:
                             # this is true if y points downards
