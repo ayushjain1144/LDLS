@@ -11,6 +11,9 @@ import lidar_segmentation.utils_improc as utils_improc
 
 import imageio
 import cv2
+import ipdb
+
+st = ipdb.set_trace
 # import hyperparams as hyp
 
 def add_loss(name, total_loss, loss, coeff, summ_writer):
@@ -688,6 +691,152 @@ def get_synth_flow_v2(xyz_cam0,
 
     return occs, unps, flow, cam1_T_cam0
 
+def get_boxes_from_flow_mag2(flow_mag, N):
+    B, Z, Y, X = list(flow_mag.shape)
+    # flow_mag is B x Z x Y x X
+
+    ## plan:
+    # take a linspace of threhsolds between the min and max
+    # for each thresh
+    #   create a binary map
+    #   turn this into labels with connected_components
+    # vis all these
+
+    assert(B==1) # later i will extend
+
+    flow_mag = flow_mag[0]
+    # flow_mag is Z x Y x X
+    flow_mag = flow_mag.detach().cpu().numpy()
+
+    from cc3d import connected_components
+
+    # adjust for numerical errors
+    flow_mag = flow_mag*100.0
+
+    boxlist = np.zeros([N, 9], dtype=np.float32)
+    scorelist = np.zeros([N], dtype=np.float32)
+    connlist = np.zeros([N, Z, Y, X], dtype=np.float32)
+    boxcount = 0
+
+    mag = np.reshape(flow_mag, [Z, Y, X])
+    mag_min, mag_max = np.min(mag), np.max(mag)
+    # print('mag min, max = %.6f, %.6f' % (mag_min, mag_max))
+    
+    threshs = np.linspace(mag_min, mag_max, num=20)
+    threshs = threshs[1:-1]
+    # print('threshs:', threshs)
+    
+    zg, yg, xg = utils_basic.meshgrid3D_py(Z, Y, X, stack=False, norm=False)
+    box3d_list = []
+
+    flow_mag_vis = flow_mag - np.min(flow_mag)
+    flow_mag_vis = flow_mag_vis / np.max(flow_mag_vis)
+    # utils.py.print_stats('flow_mag_vis', flow_mag_vis)
+    image = (np.mean(flow_mag_vis, axis=1)*255.0).astype(np.uint8)
+    image = np.stack([image, image, image], axis=2)
+
+   
+    
+    for ti, thresh in enumerate(threshs):
+        mask = (mag > thresh).astype(np.int32)
+        if True:
+            labels = connected_components(mask)
+            segids = [ x for x in np.unique(labels) if x != 0 ]
+            for si, segid in enumerate(segids):
+                extracted_vox = (labels == segid)
+                if np.sum(extracted_vox) > 3: # if we have a few pixels to box up
+                    
+                    z = zg[extracted_vox==1]
+                    y = yg[extracted_vox==1]
+                    x = xg[extracted_vox==1]
+
+                    # find the oriented box in birdview
+                    im = np.sum(extracted_vox, axis=1) # reduce on the Y dim
+                    im = im.astype(np.uint8)
+
+                    # somehow the versions change 
+                    contours, _ = cv2.findContours(im, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_NONE)[-2:]
+                    if contours:
+                        cnt = contours[0]
+                        rect = cv2.minAreaRect(cnt)
+
+                        clip = False
+                        if clip:
+                            # i want to clip at the index where YMAX dips under the ground
+                            # and where YMIN reaches above some reasonable height
+
+                            shift = hyp.YMIN
+                            scale = float(Y)/np.abs(float(hyp.YMAX-hyp.YMIN))
+                            ymin_ = (hyp.FLOOR-shift)*scale
+                            ymax_ = (hyp.CEIL-shift)*scale
+
+                            if ymin_ > ymax_:
+                                # this is true if y points downards
+                                ymax_, ymin_ = ymin_, ymax_
+
+                        ymin = np.min(y)
+                        ymax = np.max(y)
+                            
+                        hei = ymax-ymin
+                        yc = (ymax+ymin)/2.0
+
+                        (xc,zc),(wid,dep),theta = rect
+                        theta = -theta
+                        
+                        box = cv2.boxPoints(rect)
+                        if dep < wid:
+                            # dep goes along the long side of an oriented car
+                            theta += 90.0
+                            wid, dep = dep, wid
+                        theta = utils_geom.deg2rad(theta)
+
+                        if boxcount < N:#  and (yc > ymin_) and (yc < ymax_):
+                            box3d = [xc, yc, zc, wid, hei, dep, 0, theta, 0]
+                            box3d = np.array(box3d).astype(np.float32)
+
+                            already_have = False
+                            for box3d_ in box3d_list:
+                                if np.all(box3d_==box3d):
+                                    already_have = True
+                   # kitti mode
+                            if ((not already_have) and
+                                (hei >= 1.0) and
+                                (wid >= 1.0) and
+                                (dep >= 1.0) and 
+                                (hei <= 500.0) and
+                                (wid <= 500.0) and
+                                (dep <= 500.0)):
+                    
+                                box = np.int0(box)
+                                cv2.drawContours(image,[box],-1,(0,191,255),1)
+
+                                boxlist[boxcount,:] = box3d
+                                # scorelist[boxcount] = np.random.uniform(0.1, 1.0)
+                                scorelist[boxcount] = 1.0
+
+                                conn_ = np.zeros([Z, Y, X], np.float32)
+                                conn_[extracted_vox] = 1.0
+                                connlist[boxcount] = conn_
+                                
+                                boxcount += 1
+                                box3d_list.append(box3d)
+                            else:
+                                pass
+  
+
+    image = np.transpose(image, [2, 0, 1]) # channels first
+    image = torch.from_numpy(image).float().to('cuda').unsqueeze(0)
+    boxlist = torch.from_numpy(boxlist).float().to('cuda').unsqueeze(0)
+    scorelist = torch.from_numpy(scorelist).float().to('cuda').unsqueeze(0)
+    connlist = torch.from_numpy(connlist).float().to('cuda').unsqueeze(0)
+
+    tidlist = torch.linspace(1.0, N, N).long().to('cuda')
+    tidlist = tidlist.unsqueeze(0)
+
+    image = utils_improc.preprocess_color(image)
+    
+    return image, boxlist, scorelist, tidlist, connlist
+
 def get_boxes_from_flow_mag(flow_mag, N):
     B, Z, Y, X = list(flow_mag.shape)
     # flow_mag is B x Z x Y x X
@@ -722,7 +871,7 @@ def get_boxes_from_flow_mag(flow_mag, N):
     threshs = np.linspace(mag_min, mag_max, num=12)
     threshs = threshs[1:-1]
     # print('threshs:', threshs)
-    
+
     zg, yg, xg = utils_basic.meshgrid3D_py(Z, Y, X, stack=False, norm=False)
     box3D_list = []
 
@@ -758,6 +907,7 @@ def get_boxes_from_flow_mag(flow_mag, N):
                     # find the oriented box in birdview
                     im = np.sum(extracted_vox, axis=1) # reduce on the Y dim
                     im = im.astype(np.uint8)
+
                     
                     contours, hier = cv2.findContours(im, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_NONE)
                     if contours:
@@ -774,6 +924,11 @@ def get_boxes_from_flow_mag(flow_mag, N):
                         scale = float(Y)/np.abs(float(YMAX-YMIN))
                         ymin_ = (FLOOR-shift)*scale
                         ymax_ = (CEIL-shift)*scale
+
+                        # shift = hyp.YMIN
+                        # scale = float(Y)/np.abs(float(hyp.YMAX-hyp.YMIN))
+                        # ymin_ = (hyp.FLOOR-shift)*scale
+                        # ymax_ = (hyp.CEIL-shift)*scale
 
                         if ymin_ > ymax_:
                             # this is true if y points downards
@@ -798,7 +953,7 @@ def get_boxes_from_flow_mag(flow_mag, N):
                             wid, dep = dep, wid
                         theta = utils_geom.deg2rad(theta)
 
-                        if boxcount < N and (yc > ymin_) and (yc < ymax_):
+                        if boxcount < N: #and (yc > ymin_) and (yc < ymax_):
                             # bx, by = np.split(box, axis=1)
                             # boxpoints[boxcount,:] = box
 
@@ -809,16 +964,16 @@ def get_boxes_from_flow_mag(flow_mag, N):
                             for box3D_ in box3D_list:
                                 if np.all(box3D_==box3D):
                                     already_have = True
-                            
+
                             if ((not already_have) and
                                 # don't be empty (redundant now)
                                 (hei > 0) and
                                 (wid > 0) and
                                 (dep > 0) and
                                 # be less than huge
-                                (hei < 10.0) and
-                                (wid < 10.0) and
-                                (dep < 10.0) and
+                                # (hei < 10.0) and
+                                # (wid < 10.0) and
+                                # (dep < 10.0) and
                                 # be bigger than 2 vox
                                 (hei > 2.0) and
                                 (wid > 2.0) and

@@ -14,7 +14,8 @@ import keras.backend
 import tensorflow
 import numpy as np
 from lidar_segmentation.detections import MaskRCNNDetections
-
+import ipdb
+st = ipdb.set_trace
 # Leave part of the GPU memory unallocated, so can be used for label diffusion
 gpu_opt = tensorflow.GPUOptions(per_process_gpu_memory_fraction=0.7)
 config = tensorflow.ConfigProto(gpu_options=gpu_opt)
@@ -115,19 +116,24 @@ class MaskRCNNDetector(object):
                     masks.append(result['masks'][:, :, idx])
                     class_ids.append(1)
                     scores.append(result['scores'][idx])
-            rois = np.array(rois)
-            class_ids = np.array(class_ids)
-            masks = np.array(masks).transpose((1, 2, 0))
-            scores = np.array(scores)
-            all_detections.append(MaskRCNNDetections(shape=image.shape,
+            
+            try:
+                if len(class_ids) != 0:
+                    rois = np.array(rois)
+                    class_ids = np.array(class_ids)
+                    masks = np.array(masks).transpose((1, 2, 0))
+                    scores = np.array(scores)
+                all_detections.append(MaskRCNNDetections(shape=image.shape,
                                              rois=rois,
                                              masks=masks,
                                              class_ids=class_ids,
                                              scores=scores))
 
-        if not detect_multiple:
-            return all_detections[0]
-        else:
-            return all_detections
-
+                if not detect_multiple:
+                    return all_detections[0]
+                else:
+                    return all_detections
+            except Exception as e:
+                st()
+            
 

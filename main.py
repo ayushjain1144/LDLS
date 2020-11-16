@@ -15,6 +15,7 @@ import lidar_segmentation.utils_box as utils_box
 import lidar_segmentation.utils_basic as utils_basic
 import lidar_segmentation.utils_vox as utils_vox
 import lidar_segmentation.utils_ap as utils_ap
+import lidar_segmentation.utils_improc as utils_improc
 
 # from lidar_segmentation.evaluation import evaluate_instance_segmentation, LidarSegmentationGroundTruth
 
@@ -22,7 +23,22 @@ import ipdb
 import os
 st = ipdb.set_trace
 
+from tensorboardX import SummaryWriter
+np.set_printoptions(precision=2)
+EPS = 1e-6
+np.random.seed(0)
+MAX_QUEUE = 10 # how many items before the summaryWriter flushes
+log_dir = '/home/gsarch/ayush/LDLS'
+set_name = 'logs_ldls'
+set_writers = SummaryWriter(log_dir + '/' + set_name, max_queue=MAX_QUEUE, flush_secs=60)
 
+summ_writer = utils_improc.Summ_writer(
+        writer=set_writers,
+        global_step=1,
+        log_freq=1,
+        set_name=set_name,
+        fps=8,
+        just_gif=True)
 
 
 agg_mAP_ldls = 0.0
@@ -47,12 +63,14 @@ for idx in range(len(os.listdir(image_folder))):
     pseudo_path = Path("pseudo") / "label_2" / f"{idx}.txt"
 
     print(f"processing images at path: {image_path}")
-
+    #st()
     # Load calibration data
     projection = load_kitti_object_calib(calib_path)
-
+    
     # Load image
     image = load_image(image_path)
+
+    
 
     # skimage.io.imshow(image)
 
@@ -116,22 +134,41 @@ for idx in range(len(os.listdir(image_folder))):
         detector = MaskRCNNDetector()
         detections = detector.detect(image)
 
-        # results
-        results = lidarseg.run(lidar, detections, max_iters=50, save_all=False)
+        if len(detections.class_ids) == 0:
+            continue
+        # image_vis = image.reshape((1,3,image.shape[0], image.shape[1]))
+        # image_vis = image_vis[:, ::-1]
+        # summ_writer.summ_rgb('image/im{0}'.format(idx), torch.from_numpy(image_vis))
 
+        # results
+        #lidar = lidar + np.array([16.0, 0.0, 0.0], dtype=np.float32).reshape(1, 3)
+        results = lidarseg.run(lidar, detections, max_iters=1, save_all=False)
+        
         # st()
         #st()
         xyz_pc = results.points
+        #xyz_pc = xyz_pc - np.array( [16.0, 0.0, 0.0], dtype=np.float32). reshape(1, 3)
+        #xyz_pc_shift = xyz_pc - np.mean(xyz_pc, axis=0)
+        #mask_grid_s_fullocc = vox_util.voxelize_xyz(torch.from_numpy(xyz_pc).unsqueeze(0).cuda(), Z, Y, X, assert_cube=False)
+        #mask_grid_s_fullocc_all = vox_util.voxelize_xyz(torch.from_numpy(lidar).unsqueeze(0).cuda(), Z, Y, X, assert_cube=False)
+
+        #summ_writer.summ_occ('full_occ/occ{0}'.format(idx), mask_grid_s_fullocc)
+        #summ_writer.summ_occ('full_occ_all/occ{0}'.format(idx), mask_grid_s_fullocc_all)
+
         binary_pc = np.isclose(results.label_likelihoods[1], 0)[:, 1]
-        #st()
         xyz_pc_obj = xyz_pc[~binary_pc]
         num_objs = results.class_ids.shape[0]
         scores = np.ones((num_objs, 1))
         mask_grid_s = vox_util.voxelize_xyz(torch.from_numpy(xyz_pc_obj).unsqueeze(0).cuda(), Z, Y, X, assert_cube=False)
-        _, box3dlist, _, _, _ = utils_misc.get_boxes_from_flow_mag(mask_grid_s.squeeze(0), num_objs)
+
+        summ_writer.summ_occ('inputs/occ{0}'.format(idx), mask_grid_s)
+
+        _, box3dlist, _, _, _ = utils_misc.get_boxes_from_flow_mag2(mask_grid_s.squeeze(0), num_objs)
+        print(box3dlist)
         pred_lrtlist = utils_geom.convert_boxlist_to_lrtlist(box3dlist)
         pred_lrtlist = vox_util.apply_ref_T_mem_to_lrtlist(pred_lrtlist, Z, Y, X)
         pred_xyzlist = utils_geom.get_xyzlist_from_lrtlist(pred_lrtlist)
+        print(pred_xyzlist)
         map3d,_ = utils_eval.get_mAP_from_xyzlist_py(pred_xyzlist.cpu().numpy(), scores, np.expand_dims(np.stack(box3d_list, axis=0), axis=0), iou_threshold=0.25)
         print(map3d)
         agg_mAP_ldls += map3d

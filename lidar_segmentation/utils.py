@@ -84,19 +84,19 @@ class Projection(object):
         d = points.shape[1]
         Tr = self.transformation_matrix
         P = self.projection_matrix
-        st()
+        #st()
         # if d == 3:
             # Append 1 for homogenous coordinates
             # points = np.concatenate([points, np.ones((n, 1))], axis=1)
         # P = np.concatenate([P, [0, 0, ]])
-        projected = utils_geom.apply_pix_T_cam(torch.from_numpy(P).unsqueeze(0).cuda(), torch.from_numpy(points).unsqueeze(0).cuda()).cpu().numpy()
+        projected = utils_geom.apply_pix_T_cam(torch.from_numpy(P).unsqueeze(0).cuda(), torch.from_numpy(points).unsqueeze(0).cuda()).squeeze().cpu().numpy()
 
         # normalize by dividing first and second dimensions by third dimension
         # projected = np.column_stack(
             # [projected[:, 0] / projected[:, 2],
             #  projected[:, 1] / projected[:, 2]])
 
-        if remove_behind:
+        if False:
             behind = points[:,0] <= 0
             projected[behind,:] = np.nan
 

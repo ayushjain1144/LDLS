@@ -18,6 +18,9 @@ import cupy as cp
 import scipy
 
 import time
+import ipdb
+import os
+st = ipdb.set_trace
 
 
 NO_LABEL=-1
@@ -353,8 +356,9 @@ class LidarSegmentation(object):
         projected_in_frame = np.logical_and(in_frame_x, in_frame_y)
         # Lidar point is in view if in front of camera (x>0) *and* projects
         # to inside the image
-        in_view = np.logical_and(lidar[:, 0] > 0, projected_in_frame)
+        #in_view = np.logical_and(lidar[:, 0] > 0, projected_in_frame)
         # Check which lidar points project to within the image bounds
+        return projected_in_frame
         return in_view
 
     def create_graph(self, lidar, projected, n_rows, n_cols):
@@ -421,7 +425,7 @@ class LidarSegmentation(object):
                                                  pp_d_out)
         cuda.synchronize()
 
-        valid = (pp_rows_out.ravel() >= 0).get()
+        valid = (pp_rows_out.ravel()>0).get()
 
         pp_rows = pp_rows_out.get().flatten()[valid]
         pp_cols = pp_cols_out.get().flatten()[valid] + n_points
@@ -510,13 +514,15 @@ class LidarSegmentation(object):
             start_time = time.time()
             # Project lidar into 2D
             projected = self.project_points(lidar)
+            #st()
             n_rows = detections.masks.shape[0]
             n_cols = detections.masks.shape[1]
             n_pixels = n_rows * n_cols
             in_view = self.get_in_view(lidar, projected, n_rows, n_cols)
+            # lidar_all = lidar
             lidar = lidar[in_view, :]
             n_points = lidar.shape[0]
-
+            #st()
             # Create initial label matrix by reshaping masks into vectors
             n_instances = len(detections)
             # Note that background is an extra instance
@@ -581,4 +587,5 @@ class LidarSegmentation(object):
                                        in_camera_view=in_view,
                                        label_likelihoods=all_label_likelihoods,
                                        class_ids=detections.class_ids,
-                                       initial_labels=initial_lidar_labels)
+                                       initial_labels=initial_lidar_labels
+                                       )

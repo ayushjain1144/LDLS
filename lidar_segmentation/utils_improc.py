@@ -18,6 +18,8 @@ from lidar_segmentation.utils_basic import *
 import lidar_segmentation.utils_basic as utils_basic
 from sklearn.decomposition import PCA
 
+import moviepy
+
 EPS = 1e-6
 MAXWIDTH = 1800
 
@@ -418,19 +420,21 @@ def draw_circles_at_xy(xy, Y, X, sigma=12.5):
     return prior
 
 class Summ_writer(object):
-    def __init__(self, writer, global_step, set_name, fps=8, just_gif=False):
+    def __init__(self, writer, global_step, log_freq, set_name, fps=8, just_gif=False):
         self.global_step = global_step
         self.writer = writer
         self.fps = fps
         self.maxwidth = MAXWIDTH
         self.just_gif = just_gif
 
-        if set_name == "train":
-            self.log_freq = hyp.log_freq_train
-        if set_name == "val":
-            self.log_freq = hyp.log_freq_val
-        if set_name == "test":
-            self.log_freq = hyp.log_freq_test
+        # if set_name == "train":
+        #     self.log_freq = hyp.log_freq_train
+        # if set_name == "val":
+        #     self.log_freq = hyp.log_freq_val
+        # if set_name == "test":
+        #     self.log_freq = hyp.log_freq_test
+
+        self.log_freq = log_freq
 
         self.save_this = (self.global_step % self.log_freq == 0)
         
