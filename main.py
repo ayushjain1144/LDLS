@@ -172,6 +172,7 @@ for idx in range(len(os.listdir(image_folder))):
         map3d,_ = utils_eval.get_mAP_from_xyzlist_py(pred_xyzlist.cpu().numpy(), scores, np.expand_dims(np.stack(box3d_list, axis=0), axis=0), iou_threshold=0.25)
         print(map3d)
         agg_mAP_ldls += map3d
+        print(f"Running mAP: {agg_mAP_ldls/(total_imgs+1)}")
 
     # map for pseudo
     if eval_pseudo:
@@ -181,7 +182,7 @@ for idx in range(len(os.listdir(image_folder))):
         # st()
         map3d,_ = utils_eval.get_mAP_from_xyzlist_py(np.expand_dims(np.stack(box3d_list_pseudo, axis=0), axis=0), scores, np.expand_dims(np.stack(box3d_list, axis=0), axis=-0), iou_threshold=0.25)
         agg_mAP_pseudo += map3d
-
+        #print(f"Runnning mAP: {}")
 
     total_imgs += 1
 
