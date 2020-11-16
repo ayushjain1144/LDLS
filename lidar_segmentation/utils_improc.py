@@ -771,9 +771,9 @@ class Summ_writer(object):
         # draw
         for ind, corners in enumerate(corners_pix):
             # corners is 8 x 2
-            if not np.isclose(scores[ind], 0.0):
+            if True:
                 # print 'score = %.2f' % scores[ind]
-                color_id = tids[ind] % 20
+                color_id = 1 % 20
                 color = color_map[color_id]
                 color = np.array(color)*255.0
                 # color = (0,191,255)
