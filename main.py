@@ -18,7 +18,7 @@ import lidar_segmentation.utils_ap as utils_ap
 import lidar_segmentation.utils_improc as utils_improc
 
 # from lidar_segmentation.evaluation import evaluate_instance_segmentation, LidarSegmentationGroundTruth
-
+import imageio
 import ipdb
 import os
 st = ipdb.set_trace
@@ -31,7 +31,7 @@ MAX_QUEUE = 10 # how many items before the summaryWriter flushes
 log_dir = '/home/gsarch/ayush/LDLS'
 set_name = 'logs_ldls'
 set_writers = SummaryWriter(log_dir + '/' + set_name, max_queue=MAX_QUEUE, flush_secs=60)
-
+from PIL import Image
 summ_writer = utils_improc.Summ_writer(
         writer=set_writers,
         global_step=1,
@@ -89,7 +89,7 @@ for idx in range(len(os.listdir(image_folder))):
     # Load image
     image = load_image(image_path)
 
-    
+    img =  np.array(Image.open(image_path))
 
     # skimage.io.imshow(image)
 
@@ -167,7 +167,7 @@ for idx in range(len(os.listdir(image_folder))):
         scores = np.ones((num_objs, 1))
         mask_grid_s = vox_util.voxelize_xyz(torch.from_numpy(xyz_pc_obj).unsqueeze(0).cuda(), Z, Y, X, assert_cube=False)
 
-        summ_writer.summ_occ('inputs/occ{0}'.format(idx), mask_grid_s)
+        #summ_writer.summ_occ('inputs/occ{0}'.format(idx), mask_grid_s)
 
         _, box3dlist, _, _, _ = utils_misc.get_boxes_from_flow_mag2(mask_grid_s.squeeze(0), num_objs)
 #         print(box3dlist)
@@ -177,17 +177,18 @@ for idx in range(len(os.listdir(image_folder))):
 #         print(pred_xyzlist)
 
         if do_visualize:
-            rgb_camXs = torch.from_numpy(image).permute(2, 0, 1).unsqueeze(0)
+            #st()
+            rgb_camXs = torch.from_numpy(img).permute(2, 0, 1).unsqueeze(0)
             full_scorelist_s = torch.from_numpy(scores).unsqueeze(0)
-            full_tidlist_s = full_scorelist_s
+            full_tidlist_s = full_scorelist_s.int()
             pix_T_cams = torch.from_numpy(projection.projection_matrix).unsqueeze(0)
-                
-            vis1.append(self.summ_writer.summ_lrtlist(
-                        '', rgb_camXs,
+            vis1 = [] 
+            vis1.append(summ_writer.summ_lrtlist(
+                        '', rgb_camXs.cuda(),
                         pred_lrtlist,
-                        full_scorelist_s,
-                        full_tidlist_s,
-                        pix_T_cams,
+                        full_scorelist_s.cuda(),
+                        [full_tidlist_s.cuda()],
+                        pix_T_cams.cuda(),
                         only_return=True))
         
             summ_writer.summ_rgbs(f'boxes3d_all_box{idx}', vis1)
