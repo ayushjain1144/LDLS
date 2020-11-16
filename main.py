@@ -53,6 +53,21 @@ if eval_ldls:
 if eval_pseudo:
     image_folder =  Path("replica_pseudo_testing/") / "image_2"
 
+scene_centroid_x = 0.0
+scene_centroid_y = 1.0 #hyp.YMIN
+scene_centroid_z = 18.0
+# for cater the table is y=0, so we move upward a bit
+scene_centroid = np.array([scene_centroid_x,
+                        scene_centroid_y,
+                        scene_centroid_z]).reshape([1, 3])
+scene_centroid = torch.from_numpy(scene_centroid).float().cuda() 
+Z, Y, X  = 80, 80, 80             
+
+vox_util = utils_vox.Vox_util(
+Z, Y, X, 
+'train', scene_centroid=scene_centroid,
+assert_cube=True)
+detector = MaskRCNNDetector()
 
 for idx in range(len(os.listdir(image_folder))):
 
@@ -83,47 +98,34 @@ for idx in range(len(os.listdir(image_folder))):
     # Load labels from txt instead of running their maskrcnn
     label_file = open(label_path, 'r')
 
-    bbox_2d_list = []
-    class_list = []
+    #bbox_2d_list = []
+    #class_list = []
     box3d_list = []
     
 
     # loading ground truth
     for line in label_file.readlines():
         data_list = line.split(' ')
-        class_label = data_list[0]
+        #class_label = data_list[0]
         # st()
-        bbox_2d = [float(s) for s in data_list[4:8]]
+        #bbox_2d = [float(s) for s in data_list[4:8]]
         bbox_3d = np.array([float(s) for s in data_list[8:]]).reshape(8, 3)
-        bbox_2d_list.append(bbox_2d)
-        class_list.append(class_label)
+        #bbox_2d_list.append(bbox_2d)
+        #class_list.append(class_label)
         box3d_list.append(bbox_3d)
 
     # loading pseudo 3D just for calculating mAP for free
-    box3d_list_pseudo = []
-    label_file = open(pseudo_path, 'r')
+    #box3d_list_pseudo = []
+    #label_file = open(pseudo_path, 'r')
 
-    for line in label_file.readlines():
-        data_list = line.split(' ')
-        bbox_3d = np.array([float(s) for s in data_list[8:]]).reshape(8, 3)
-        box3d_list_pseudo.append(bbox_3d)
+#     for line in label_file.readlines():
+#         data_list = line.split(' ')
+#         bbox_3d = np.array([float(s) for s in data_list[8:]]).reshape(8, 3)
+#         box3d_list_pseudo.append(bbox_3d)
 
     # create voxel scene 
 
-    scene_centroid_x = 0.0
-    scene_centroid_y = 1.0 #hyp.YMIN
-    scene_centroid_z = 18.0
-    # for cater the table is y=0, so we move upward a bit
-    scene_centroid = np.array([scene_centroid_x,
-                                scene_centroid_y,
-                                scene_centroid_z]).reshape([1, 3])
-    scene_centroid = torch.from_numpy(scene_centroid).float().cuda() 
-    Z, Y, X  = 80, 80, 80             
-                                                
-    vox_util = utils_vox.Vox_util(
-        Z, Y, X, 
-        'train', scene_centroid=scene_centroid,
-        assert_cube=True)
+
     # st()
 
     # mAP for ldls
@@ -131,7 +133,7 @@ for idx in range(len(os.listdir(image_folder))):
     if eval_ldls:
 
         # detector
-        detector = MaskRCNNDetector()
+        
         detections = detector.detect(image)
 
         if len(detections.class_ids) == 0:
@@ -164,11 +166,11 @@ for idx in range(len(os.listdir(image_folder))):
         summ_writer.summ_occ('inputs/occ{0}'.format(idx), mask_grid_s)
 
         _, box3dlist, _, _, _ = utils_misc.get_boxes_from_flow_mag2(mask_grid_s.squeeze(0), num_objs)
-        print(box3dlist)
+#         print(box3dlist)
         pred_lrtlist = utils_geom.convert_boxlist_to_lrtlist(box3dlist)
         pred_lrtlist = vox_util.apply_ref_T_mem_to_lrtlist(pred_lrtlist, Z, Y, X)
         pred_xyzlist = utils_geom.get_xyzlist_from_lrtlist(pred_lrtlist)
-        print(pred_xyzlist)
+#         print(pred_xyzlist)
         map3d,_ = utils_eval.get_mAP_from_xyzlist_py(pred_xyzlist.cpu().numpy(), scores, np.expand_dims(np.stack(box3d_list, axis=0), axis=0), iou_threshold=0.25)
         print(map3d)
         agg_mAP_ldls += map3d
