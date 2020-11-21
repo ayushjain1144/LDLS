@@ -78,7 +78,7 @@ class MaskRCNNDetector(object):
         model.load_weights(COCO_MODEL_PATH, by_name=True)
         self.model = model
 
-    def detect(self, images, verbose=0):
+    def detect(self, images, whitelist, verbose=0):
         """
         Run Mask-RCNN to detect objects.
         Input can be one image, or a list of images
@@ -111,7 +111,7 @@ class MaskRCNNDetector(object):
 
             # st()
             for idx, cls_id in enumerate(result['class_ids']):
-                if cls_id >= 3 and cls_id <= 9 and cls_id != 4:
+                if cls_id in whitelist:
                     rois.append(result['rois'][idx])
                     masks.append(result['masks'][:, :, idx])
                     class_ids.append(1)
